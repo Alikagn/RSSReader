@@ -44,10 +44,17 @@ extension NewsViewController: NewsViewProtocol {
         }
     }
     
-    // ← ДОБАВЬТЕ ЭТОТ МЕТОД
     func showWebView(url: URL) {
         let safariVC = SFSafariViewController(url: url)
         present(safariVC, animated: true)
+    }
+    
+    // ← Обновляем статус прочтения в ячейке
+    func updateReadStatus(at index: Int, isRead: Bool) {
+        let indexPath = IndexPath(row: index, section: 0)
+        if let cell = tableView.cellForRow(at: indexPath) as? NewsCell {
+            cell.updateReadStatus(isRead)
+        }
     }
 }
 

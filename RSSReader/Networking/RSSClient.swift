@@ -4,11 +4,11 @@
 //
 //  Created by Dmitry Batorevich on 22.04.2026.
 //
-
 import Foundation
 
 protocol RSSClientProtocol {
     func fetchNews(completion: @escaping (Result<[RSSItem], RSSClientError>) -> Void)
+    func fetchFeed(completion: @escaping (Result<RSSFeed, RSSClientError>) -> Void)
 }
 
 final class RSSClient: RSSClientProtocol {
@@ -18,7 +18,7 @@ final class RSSClient: RSSClientProtocol {
     private let parser: RSSParser
     
     // MARK: - Constants
-    private let tassRSSURL = "https://tass.ru/rss/v2.xml"
+    private let tassRSSURL = "https://russian.rt.com/rss"//"https://tass.ru/rss/v2.xml"
     
     // MARK: - Initialization
     init(session: URLSession = .shared, parser: RSSParser = RSSParser()) {
@@ -28,6 +28,17 @@ final class RSSClient: RSSClientProtocol {
     
     // MARK: - Public Methods
     func fetchNews(completion: @escaping (Result<[RSSItem], RSSClientError>) -> Void) {
+        fetchFeed { result in
+            switch result {
+            case .success(let feed):
+                completion(.success(feed.items))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+    
+    func fetchFeed(completion: @escaping (Result<RSSFeed, RSSClientError>) -> Void) {
         // 1. Создаем URL
         guard let url = URL(string: tassRSSURL) else {
             completion(.failure(.invalidURL))
@@ -51,7 +62,7 @@ final class RSSClient: RSSClientProtocol {
     }
     
     private func performRequest(_ request: URLRequest,
-                                completion: @escaping (Result<[RSSItem], RSSClientError>) -> Void) {
+                                completion: @escaping (Result<RSSFeed, RSSClientError>) -> Void) {
         print("📡 Загрузка RSS ленты: \(request.url?.absoluteString ?? "")")
         
         let task = session.dataTask(with: request) { [weak self] data, response, error in
@@ -64,7 +75,7 @@ final class RSSClient: RSSClientProtocol {
     private func handleResponse(data: Data?,
                                 response: URLResponse?,
                                 error: Error?,
-                                completion: @escaping (Result<[RSSItem], RSSClientError>) -> Void) {
+                                completion: @escaping (Result<RSSFeed, RSSClientError>) -> Void) {
         
         // 1. Обработка ошибки сети
         if let error = error {
@@ -98,12 +109,17 @@ final class RSSClient: RSSClientProtocol {
     }
     
     private func parseXMLData(_ data: Data,
-                              completion: @escaping (Result<[RSSItem], RSSClientError>) -> Void) {
+                              completion: @escaping (Result<RSSFeed, RSSClientError>) -> Void) {
         
-        let delegate = RSSParserDelegateHandler { result in
-            DispatchQueue.main.async {
-                completion(result)
-            }
+        let delegate = RSSParserDelegateHandler { [weak self] items, icon in
+            let feed = RSSFeed(
+                title: "ТАСС",
+                link: "https://tass.ru",
+                description: "Новости ТАСС",
+                iconURL: icon,
+                items: items
+            )
+            completion(.success(feed))
         }
         
         parser.parse(data: data, delegate: delegate)
@@ -113,17 +129,17 @@ final class RSSClient: RSSClientProtocol {
 // MARK: - RSSParserDelegate Handler
 private class RSSParserDelegateHandler: NSObject, RSSParserDelegate {
     
-    private let completion: (Result<[RSSItem], RSSClientError>) -> Void
+    private let completion: ([RSSItem], String?) -> Void
     
-    init(completion: @escaping (Result<[RSSItem], RSSClientError>) -> Void) {
+    init(completion: @escaping ([RSSItem], String?) -> Void) {
         self.completion = completion
     }
     
-    func parserDidFinishParsing(_ items: [RSSItem]) {
-        completion(.success(items))
+    func parserDidFinishParsing(_ items: [RSSItem], feedIcon: String?) {
+        completion(items, feedIcon)
     }
     
     func parserDidFail(with error: Error) {
-        completion(.failure(.parsingError))
+        completion([], nil)
     }
 }

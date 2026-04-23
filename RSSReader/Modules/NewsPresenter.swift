@@ -14,7 +14,8 @@ protocol NewsViewProtocol: AnyObject {
     func showNews(_ news: [RSSItem])
     func showError(_ message: String)
     func updateRefreshControl(animating: Bool)
-    func showWebView(url: URL)  // ← ДОБАВЬТЕ ЭТОТ МЕТОД
+    func showWebView(url: URL)
+    func updateReadStatus(at index: Int, isRead: Bool)  // ← Добавляем метод обновления статуса
 }
 
 protocol NewsPresenterProtocol: AnyObject {
@@ -35,6 +36,10 @@ final class NewsPresenter: NewsPresenterProtocol {
     // MARK: - State
     private var news: [RSSItem] = []
     
+    // MARK: - UserDefaults для сохранения статуса прочтения
+    private let userDefaults = UserDefaults.standard
+    private let readNewsKey = "readNewsURLs"
+    
     // MARK: - Initialization
     init(view: NewsViewProtocol, newsService: NewsServiceProtocol = TASSNewsService()) {
         self.view = view
@@ -52,11 +57,16 @@ final class NewsPresenter: NewsPresenterProtocol {
     
     func didSelectNews(at index: Int) {
         guard index < news.count else { return }
-        let item = news[index]
+        var item = news[index]
         
-        // Открываем URL через View
+        // Если новость не прочитана - отмечаем как прочитанную
+        if !item.isRead {
+            markAsRead(at: index)
+        }
+        
+        // Открываем URL
         if let url = URL(string: item.link) {
-            view?.showWebView(url: url)  // ← Теперь这个方法 существует
+            view?.showWebView(url: url)
         }
     }
     
@@ -80,14 +90,51 @@ final class NewsPresenter: NewsPresenterProtocol {
                 
                 switch result {
                 case .success(let news):
-                    self?.news = news
-                    self?.view?.showNews(news)
-                    print("✅ Загружено \(news.count) новостей")
+                    // Восстанавливаем статус прочтения из UserDefaults
+                    let updatedNews = self?.restoreReadStatus(for: news) ?? news
+                    self?.news = updatedNews
+                    self?.view?.showNews(updatedNews)
+                    print("✅ Загружено \(updatedNews.count) новостей")
                     
                 case .failure(let error):
                     self?.view?.showError(error.localizedDescription)
                 }
             }
         }
+    }
+    
+    // MARK: - Read Status Management
+    private func markAsRead(at index: Int) {
+        guard index < news.count else { return }
+        
+        // Обновляем статус в массиве
+        news[index].isRead = true
+        
+        // Сохраняем URL прочитанной новости в UserDefaults
+        var readURLs = userDefaults.array(forKey: readNewsKey) as? [String] ?? []
+        let newsURL = news[index].link
+        
+        if !readURLs.contains(newsURL) {
+            readURLs.append(newsURL)
+            userDefaults.set(readURLs, forKey: readNewsKey)
+        }
+        
+        // Обновляем UI
+        view?.updateReadStatus(at: index, isRead: true)
+    }
+    
+    private func restoreReadStatus(for news: [RSSItem]) -> [RSSItem] {
+        let readURLs = userDefaults.array(forKey: readNewsKey) as? [String] ?? []
+        
+        var updatedNews = news
+        for i in 0..<updatedNews.count {
+            if readURLs.contains(updatedNews[i].link) {
+                updatedNews[i].isRead = true
+            } else {
+                updatedNews[i].isRead = false
+            }
+        }
+        
+        return updatedNews
     }
 }

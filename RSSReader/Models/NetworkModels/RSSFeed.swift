@@ -6,20 +6,17 @@
 //
 
 import Foundation
-/*
-struct RSSFeed {
-    let id: UUID
-    let title: String
-    let url: String
-    let iconURL: String?
-    let category: String?
-    let lastUpdated: Date
-    var articles: [RSSItem]
-}
-*/
+
 struct RSSFeed {
     let title: String
     let link: String
     let description: String
+    let iconURL: String?
     let items: [RSSItem]
+    
+    // MARK: - Computed Properties
+    var formattedIconURL: URL? {
+        guard let iconURL = iconURL else { return nil }
+        return URL(string: iconURL)
+    }
 }
