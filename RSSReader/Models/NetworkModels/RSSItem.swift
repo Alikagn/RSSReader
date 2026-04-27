@@ -28,3 +28,4 @@ struct RSSItem {
         return URL(string: enclosureURL)
     }
 }
+

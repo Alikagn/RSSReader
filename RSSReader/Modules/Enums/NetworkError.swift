@@ -2,7 +2,7 @@
 //  NetworkError.swift
 //  RSSReader
 //
-//  Created by Dmitry Batorevich on 20.04.2026.
+//  Created by Dmitry Batorevich on 26.04.2026.
 //
 
 import Foundation
@@ -35,19 +35,6 @@ enum NetworkError: Error, LocalizedError {
             return "Ошибка обработки данных"
         case .unknown(let error):
             return "Неизвестная ошибка: \(error.localizedDescription)"
-        }
-    }
-    
-    var recoverySuggestion: String? {
-        switch self {
-        case .noInternetConnection:
-            return "Проверьте подключение к интернету"
-        case .timeout:
-            return "Попробуйте повторить запрос позже"
-        case .serverError:
-            return "Сервер временно недоступен. Попробуйте позже"
-        default:
-            return "Попробуйте повторить операцию"
         }
     }
 }

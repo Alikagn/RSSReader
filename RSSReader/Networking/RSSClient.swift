@@ -18,7 +18,7 @@ final class RSSClient: RSSClientProtocol {
     private let parser: RSSParser
     
     // MARK: - Constants
-    private let tassRSSURL = "https://russian.rt.com/rss"//"https://tass.ru/rss/v2.xml"
+    private let tassRSSURL = /*"https://russian.rt.com/rss"*/"https://tass.ru/rss/v2.xml"
     
     // MARK: - Initialization
     init(session: URLSession = .shared, parser: RSSParser = RSSParser()) {

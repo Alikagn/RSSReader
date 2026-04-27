@@ -8,58 +8,8 @@
 import UIKit
 import SafariServices
 
-// MARK: - NewsViewProtocol
-extension NewsViewController: NewsViewProtocol {
-    func showLoading() {
-        activityIndicator.startAnimating()
-    }
-    
-    func hideLoading() {
-        activityIndicator.stopAnimating()
-    }
-    
-    func showNews(_ news: [RSSItem]) {
-        self.news = news
-        tableView.reloadData()
-    }
-    
-    func showError(_ message: String) {
-        let alert = UIAlertController(
-            title: "Ошибка",
-            message: message,
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        alert.addAction(UIAlertAction(title: "Повторить", style: .default) { [weak self] _ in
-            self?.presenter?.didTapRefresh()
-        })
-        present(alert, animated: true)
-    }
-    
-    func updateRefreshControl(animating: Bool) {
-        if animating {
-            refreshControl.beginRefreshing()
-        } else {
-            refreshControl.endRefreshing()
-        }
-    }
-    
-    func showWebView(url: URL) {
-        let safariVC = SFSafariViewController(url: url)
-        present(safariVC, animated: true)
-    }
-    
-    // ← Обновляем статус прочтения в ячейке
-    func updateReadStatus(at index: Int, isRead: Bool) {
-        let indexPath = IndexPath(row: index, section: 0)
-        if let cell = tableView.cellForRow(at: indexPath) as? NewsCell {
-            cell.updateReadStatus(isRead)
-        }
-    }
-}
-
 // MARK: - ViewController
-final class NewsViewController: UIViewController {
+final class NewsViewController: UIViewController, AddFeedDelegate {
     
     // MARK: - UI Components
     private let tableView: UITableView = {
@@ -116,13 +66,8 @@ final class NewsViewController: UIViewController {
     }
     
     private func setupNavigationBar() {
-        let refreshButton = UIBarButtonItem(
-            image: UIImage(systemName: "arrow.clockwise"),
-            style: .plain,
-            target: self,
-            action: #selector(refreshButtonTapped)
-        )
-        navigationItem.rightBarButtonItem = refreshButton
+        let addButton = UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(didTapAddButton))
+        navigationItem.rightBarButtonItem = addButton
     }
     
     private func setupPresenter() {
@@ -136,6 +81,71 @@ final class NewsViewController: UIViewController {
     
     @objc private func refreshControlPulled() {
         presenter?.didTapRefresh()
+    }
+    
+    @objc private func didTapAddButton() {
+        let addFeedVC = AddFeedViewController()
+        addFeedVC.delegate = self
+        let navController = UINavigationController(rootViewController: addFeedVC)
+        present(navController, animated: true)
+    }
+    
+    // MARK: - AddFeedDelegate
+    func didAddFeed(url: String, title: String) {
+        presenter?.addNewFeed(url: url, title: title)
+    }
+    
+    func didCancel() {
+        // Просто закрыть контроллер
+    }
+}
+
+// MARK: - NewsViewProtocol
+extension NewsViewController: NewsViewProtocol {
+    func showLoading() {
+        activityIndicator.startAnimating()
+    }
+    
+    func hideLoading() {
+        activityIndicator.stopAnimating()
+    }
+    
+    func showNews(_ news: [RSSItem]) {
+        self.news = news
+        tableView.reloadData()
+    }
+    
+    func showError(_ message: String) {
+        let alert = UIAlertController(
+            title: "Ошибка",
+            message: message,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        alert.addAction(UIAlertAction(title: "Повторить", style: .default) { [weak self] _ in
+            self?.presenter?.didTapRefresh()
+        })
+        present(alert, animated: true)
+    }
+    
+    func updateRefreshControl(animating: Bool) {
+        if animating {
+            refreshControl.beginRefreshing()
+        } else {
+            refreshControl.endRefreshing()
+        }
+    }
+    
+    func showWebView(url: URL) {
+        let safariVC = SFSafariViewController(url: url)
+        present(safariVC, animated: true)
+    }
+    
+    func updateReadStatus(at index: Int, isRead: Bool) {
+        let indexPath = IndexPath(row: index, section: 0)
+        if let cell = tableView.cellForRow(at: indexPath) as? NewsCell {
+            cell.updateReadStatus(isRead)
+        }
     }
 }
 
@@ -154,7 +164,7 @@ extension NewsViewController: UITableViewDataSource {
         }
         
         if let item = presenter?.getNews(at: indexPath.row) {
-            cell.configure(with: item)
+            cell.configure(with: item, feedTitle: "ТАСС", feedIconURL: "https://tass.ru/favicon.ico")
         }
         
         return cell

@@ -24,7 +24,10 @@ protocol NewsPresenterProtocol: AnyObject {
     func didSelectNews(at index: Int)
     func getNewsCount() -> Int
     func getNews(at index: Int) -> RSSItem
+    func addNewFeed(url: String, title: String) // Новый метод
+    func toggleReadStatus(at index: Int)        // Новый метод для свайпа
 }
+
 
 // MARK: - Presenter
 final class NewsPresenter: NewsPresenterProtocol {
@@ -137,4 +140,21 @@ final class NewsPresenter: NewsPresenterProtocol {
         
         return updatedNews
     }
-}
+    
+    func addNewFeed(url: String, title: String) {
+           // Временная заглушка. Позже здесь будет код для сохранения ленты.
+           view?.showError("Функция добавления ленты в разработке")
+           print("Добавлена лента: \(title) (\(url))")
+       }
+
+       func toggleReadStatus(at index: Int) {
+           guard index < news.count else { return }
+           let item = news[index]
+           if item.isRead {
+               // Здесь нужна логика для отметки "непрочитано"
+               view?.showError("Функция изменения статуса в разработке")
+           } else {
+               markAsRead(at: index)
+           }
+       }
+   }

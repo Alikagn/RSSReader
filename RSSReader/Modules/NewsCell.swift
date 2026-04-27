@@ -11,12 +11,12 @@ final class NewsCell: UITableViewCell {
     static let identifier = "NewsCell"
     
     // MARK: - UI Components
-    private let iconImageView: UIImageView = {
+    private let feedIconImageView: UIImageView = {
         let iv = UIImageView()
-        iv.contentMode = .scaleAspectFill
+        iv.contentMode = .scaleAspectFit
         iv.clipsToBounds = true
         iv.layer.cornerRadius = 8
-        iv.backgroundColor = .systemGray6
+        iv.backgroundColor = .systemGray5
         iv.translatesAutoresizingMaskIntoConstraints = false
         return iv
     }()
@@ -37,15 +37,26 @@ final class NewsCell: UITableViewCell {
         return label
     }()
     
-    // MARK: - Синяя точка для непрочитанных сообщений
+    private let feedTitleLabel: UILabel = {
+        let label = UILabel()
+        label.font = .systemFont(ofSize: 12, weight: .semibold)
+        label.textColor = .systemBlue
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+    
+    // Синяя точка для непрочитанных сообщений
     private let unreadDot: UIView = {
         let view = UIView()
         view.backgroundColor = .systemBlue
-        view.layer.cornerRadius = 6  // ← Радиус 6 = диаметр 12 (как в iMessage)
+        view.layer.cornerRadius = 6
         view.translatesAutoresizingMaskIntoConstraints = false
         view.isHidden = true
         return view
     }()
+    
+    // Кэш для иконок лент
+    private static var iconCache: [String: UIImage] = [:]
     
     // MARK: - Initialization
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
@@ -59,46 +70,53 @@ final class NewsCell: UITableViewCell {
     
     // MARK: - Setup
     private func setupUI() {
-        contentView.addSubview(iconImageView)
-        contentView.addSubview(unreadDot)      // ← Добавляем точку
+        contentView.addSubview(feedIconImageView)
+        contentView.addSubview(unreadDot)
+        contentView.addSubview(feedTitleLabel)
         contentView.addSubview(titleLabel)
         contentView.addSubview(dateLabel)
         
         NSLayoutConstraint.activate([
-            // Иконка слева
-            iconImageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            iconImageView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            iconImageView.widthAnchor.constraint(equalToConstant: 40),
-            iconImageView.heightAnchor.constraint(equalToConstant: 40),
+            // Иконка ленты слева
+            feedIconImageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            feedIconImageView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            feedIconImageView.widthAnchor.constraint(equalToConstant: 40),
+            feedIconImageView.heightAnchor.constraint(equalToConstant: 40),
             
-            // Синяя точка (слева от текста, как в iMessage)
-            unreadDot.leadingAnchor.constraint(equalTo: iconImageView.trailingAnchor, constant: 12),
-            unreadDot.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            // Синяя точка
+            unreadDot.leadingAnchor.constraint(equalTo: feedIconImageView.trailingAnchor, constant: 12),
+            unreadDot.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
             unreadDot.widthAnchor.constraint(equalToConstant: 12),
             unreadDot.heightAnchor.constraint(equalToConstant: 12),
             
+            // Название ленты
+            feedTitleLabel.leadingAnchor.constraint(equalTo: unreadDot.trailingAnchor, constant: 8),
+            feedTitleLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 14),
+            feedTitleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            
             // Заголовок
-            titleLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
-            titleLabel.leadingAnchor.constraint(equalTo: unreadDot.trailingAnchor, constant: 8),
+            titleLabel.leadingAnchor.constraint(equalTo: feedIconImageView.trailingAnchor, constant: 20),
+            titleLabel.topAnchor.constraint(equalTo: feedTitleLabel.bottomAnchor, constant: 4),
             titleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
             
             // Дата
+            dateLabel.leadingAnchor.constraint(equalTo: feedIconImageView.trailingAnchor, constant: 20),
             dateLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 4),
-            dateLabel.leadingAnchor.constraint(equalTo: unreadDot.trailingAnchor, constant: 8),
             dateLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
             dateLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12)
         ])
     }
     
     // MARK: - Configuration
-    func configure(with item: RSSItem) {
+    func configure(with item: RSSItem, feedTitle: String = "ТАСС", feedIconURL: String? = nil) {
         titleLabel.text = item.title
         dateLabel.text = formatDate(item.pubDate)
+        feedTitleLabel.text = feedTitle
         
-        // Показываем или скрываем синюю точку в зависимости от статуса прочтения
+        // Показываем или скрываем синюю точку
         unreadDot.isHidden = item.isRead
         
-        // Если новость не прочитана - делаем заголовок жирным
+        // Стиль заголовка в зависимости от прочтения
         if item.isRead {
             titleLabel.font = .systemFont(ofSize: 16, weight: .regular)
             titleLabel.textColor = .secondaryLabel
@@ -107,15 +125,82 @@ final class NewsCell: UITableViewCell {
             titleLabel.textColor = .label
         }
         
-        // Загружаем иконку
-        if let enclosureURL = item.formattedEnclosureURL {
-            loadImage(from: enclosureURL)
-        } else if let iconURL = item.formattedIconURL {
-            loadImage(from: iconURL)
-        } else {
-            iconImageView.image = UIImage(systemName: "newspaper")
-            iconImageView.tintColor = .systemBlue
+        // Загружаем логотип ленты (favicon)
+        loadFeedIcon(feedIconURL: feedIconURL, feedTitle: feedTitle)
+    }
+    
+    private func loadFeedIcon(feedIconURL: String?, feedTitle: String) {
+        // Проверяем кэш
+        let cacheKey = feedIconURL ?? feedTitle
+        if let cachedImage = NewsCell.iconCache[cacheKey] {
+            feedIconImageView.image = cachedImage
+            feedIconImageView.backgroundColor = .clear
+            return
         }
+        
+        // Получаем favicon
+        let faviconURLString = getFaviconURL(from: feedIconURL, feedTitle: feedTitle)
+        
+        guard let url = URL(string: faviconURLString) else {
+            setPlaceholderIcon(feedTitle: feedTitle)
+            return
+        }
+        
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            guard let data = data, let image = UIImage(data: data) else {
+                DispatchQueue.main.async {
+                    self?.setPlaceholderIcon(feedTitle: feedTitle)
+                }
+                return
+            }
+            
+            DispatchQueue.main.async {
+                NewsCell.iconCache[cacheKey] = image
+                self?.feedIconImageView.image = image
+                self?.feedIconImageView.backgroundColor = .clear
+            }
+        }.resume()
+    }
+    
+    private func getFaviconURL(from iconURL: String?, feedTitle: String) -> String {
+        // Если есть прямой URL иконки
+        if let iconURL = iconURL, !iconURL.isEmpty {
+            return iconURL
+        }
+        
+        // Для ТАСС используем прямой URL
+        if feedTitle == "ТАСС" {
+            return "https://tass.ru/favicon.ico"
+        }
+        
+        // Для других лент формируем URL на основе названия
+        let domain = feedTitle.lowercased()
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: ".", with: "")
+        return "https://\(domain).ru/favicon.ico"
+    }
+    
+    private func setPlaceholderIcon(feedTitle: String) {
+        // Создаем плейсхолдер с первой буквой
+        feedIconImageView.backgroundColor = .systemGray5
+        feedIconImageView.image = nil
+        
+        // Удаляем старые subviews
+        feedIconImageView.subviews.forEach { $0.removeFromSuperview() }
+        
+        let firstLetter = String(feedTitle.prefix(1)).uppercased()
+        let label = UILabel()
+        label.text = firstLetter
+        label.textAlignment = .center
+        label.font = .systemFont(ofSize: 20, weight: .medium)
+        label.textColor = .systemGray
+        label.translatesAutoresizingMaskIntoConstraints = false
+        feedIconImageView.addSubview(label)
+        
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: feedIconImageView.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: feedIconImageView.centerYAnchor)
+        ])
     }
     
     // Обновление статуса прочтения (без пересоздания всей ячейки)
@@ -129,15 +214,6 @@ final class NewsCell: UITableViewCell {
             titleLabel.font = .systemFont(ofSize: 16, weight: .semibold)
             titleLabel.textColor = .label
         }
-    }
-    
-    private func loadImage(from url: URL) {
-        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
-            guard let data = data, let image = UIImage(data: data) else { return }
-            DispatchQueue.main.async {
-                self?.iconImageView.image = image
-            }
-        }.resume()
     }
     
     private func formatDate(_ dateString: String) -> String {
@@ -165,9 +241,12 @@ final class NewsCell: UITableViewCell {
     
     override func prepareForReuse() {
         super.prepareForReuse()
-        iconImageView.image = nil
+        feedIconImageView.image = nil
+        feedIconImageView.backgroundColor = .systemGray5
+        feedIconImageView.subviews.forEach { $0.removeFromSuperview() }
         titleLabel.text = nil
         dateLabel.text = nil
+        feedTitleLabel.text = nil
         unreadDot.isHidden = true
     }
 }
